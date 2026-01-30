@@ -212,6 +212,9 @@
                 Attendance Log
               </span>
               <div class="d-flex gap-2">
+                <button id="btnSyncCloud" class="btn btn-sm btn-outline-primary" title="Sync from Cloud">
+                  <i class="bi bi-cloud-download"></i>
+                </button>
                 <div class="dropdown">
                   <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button" data-bs-toggle="dropdown">
                     <i class="bi bi-download"></i> Export
@@ -271,6 +274,9 @@
         /* ========= LOAD STORED DATA ========= */
         let scannedUsers = JSON.parse(localStorage.getItem('scannedUsers')) || [];
 
+        // Your Google Apps Script URL
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz73CMZV7pt7ElgiFhKXxMIHnNBpW29HpSD_mSgdcxz9dhcojU4VLIlmuC3G45-cVyU/exec';
+
         /* ========= UPDATE STATS ========= */
         function updateStats() {
           const total = scannedUsers.length;
@@ -326,13 +332,11 @@
 
         /* ========= SYNC TO GOOGLE SHEETS ========= */
         function syncData(scanData) {
-          const scriptURL = 'https://script.google.com/macros/s/AKfycbz73CMZV7pt7ElgiFhKXxMIHnNBpW29HpSD_mSgdcxz9dhcojU4VLIlmuC3G45-cVyU/exec';
-
           // If URL is not set, we just return (data stays pending)
-          if (!scriptURL.startsWith('https://script.google.com')) return;
+          if (!GOOGLE_SCRIPT_URL.startsWith('https://script.google.com')) return;
 
           $.ajax({
-            url: scriptURL,
+            url: GOOGLE_SCRIPT_URL,
             type: 'POST',
             data: JSON.stringify(scanData),
             contentType: 'text/plain;charset=utf-8',
@@ -350,6 +354,46 @@
             },
           });
         }
+
+        /* ========= DOWNLOAD FROM CLOUD ========= */
+        $('#btnSyncCloud').click(function() {
+          if (!GOOGLE_SCRIPT_URL.startsWith('https://script.google.com')) {
+             showStatus('❌ Script URL not configured', 'danger');
+             return;
+          }
+
+          const $btn = $(this);
+          const originalHtml = $btn.html();
+          $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+
+          $.ajax({
+            url: GOOGLE_SCRIPT_URL,
+            type: 'GET',
+            dataType: 'json',
+            success: function (data) {
+              let newCount = 0;
+              // Merge cloud data with local data
+              data.forEach((cloudItem) => {
+                // Check if we already have this ID + Time combination
+                const exists = scannedUsers.some((local) => local.id == cloudItem.id && local.time == cloudItem.time);
+                if (!exists) {
+                  scannedUsers.push({ ...cloudItem, synced: true });
+                  newCount++;
+                }
+              });
+              localStorage.setItem('scannedUsers', JSON.stringify(scannedUsers));
+              renderTable();
+              showStatus(`✅ Synced! Loaded ${newCount} new records.`, 'success');
+            },
+            error: function (xhr, status, error) {
+              console.error('Cloud Load Error:', error, xhr.responseText);
+              showStatus('❌ Failed to load. Check console/permissions.', 'danger');
+            },
+            complete: function () {
+              $btn.html(originalHtml).prop('disabled', false);
+            },
+          });
+        });
 
         /* ========= PROCESS DATA (SCAN OR MANUAL) ========= */
         function processInput(data) {

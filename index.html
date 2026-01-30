@@ -403,8 +403,8 @@
               let newCount = 0;
               // Merge cloud data with local data
               data.forEach((cloudItem) => {
-                // Check if we already have this ID + Time combination
-                const exists = scannedUsers.some((local) => local.id == cloudItem.id && local.time == cloudItem.time);
+                // Check if we already have this ID (Prevent duplicates)
+                const exists = scannedUsers.some((local) => local.id == cloudItem.id);
                 if (!exists) {
                   scannedUsers.push({ ...cloudItem, synced: true });
                   newCount++;
@@ -472,7 +472,7 @@
 
         /* ========= QR SUCCESS ========= */
         function onScanSuccess(decodedText) {
-          processInput(decodedText);
+          processInput(decodedText.trim());
         }
 
         function onScanFailure(error) {

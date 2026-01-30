@@ -275,7 +275,8 @@
         let scannedUsers = JSON.parse(localStorage.getItem('scannedUsers')) || [];
 
         // Your Google Apps Script URL
-        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz73CMZV7pt7ElgiFhKXxMIHnNBpW29HpSD_mSgdcxz9dhcojU4VLIlmuC3G45-cVyU/exec';
+        // Library: https://script.google.com/macros/library/d/1xwoXcP1pQ-jz4aN9e_D8LzPk5TNI72baThQyQNXJN5srPMpE0McZUzpn/2
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzJDergcwc3c1FrDo-Xwx4Ct2Fi10A_A-quY12SFKt4BIyEX31Z5by7LsFEbZkGomN1/exec';
 
         /* ========= UPDATE STATS ========= */
         function updateStats() {
@@ -366,12 +367,15 @@
           const originalHtml = $btn.html();
           $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
 
-          fetch(GOOGLE_SCRIPT_URL)
-            .then((response) => {
-              if (!response.ok) throw new Error('Network response was not ok');
-              return response.json();
-            })
-            .then((data) => {
+          // Add timestamp to prevent caching
+          const urlWithCache = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
+
+          $.ajax({
+            url: urlWithCache,
+            type: 'GET',
+            dataType: 'json',
+            crossDomain: true,
+            success: function (data) {
               let newCount = 0;
               // Merge cloud data with local data
               data.forEach((cloudItem) => {
@@ -385,14 +389,21 @@
               localStorage.setItem('scannedUsers', JSON.stringify(scannedUsers));
               renderTable();
               showStatus(`✅ Synced! Loaded ${newCount} new records.`, 'success');
-            })
-            .catch((error) => {
-              console.error('Cloud Load Error:', error);
-              showStatus('❌ Failed to load. Check permissions (Anyone).', 'danger');
-            })
-            .finally(() => {
+            },
+            error: function (xhr, status, error) {
+              console.error('Cloud Load Error:', status, error);
+              if (xhr.status === 0) {
+                showStatus('⚠️ CORS Error: Check "Anyone" permission in Google Script.', 'danger');
+              } else if (xhr.status === 200) {
+                showStatus('❌ Error: Script returned HTML. Check "Anyone" permission.', 'danger');
+              } else {
+                showStatus('❌ Failed to load. Check console.', 'danger');
+              }
+            },
+            complete: function () {
               $btn.html(originalHtml).prop('disabled', false);
-            });
+            },
+          });
         });
 
         /* ========= PROCESS DATA (SCAN OR MANUAL) ========= */

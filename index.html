@@ -506,10 +506,32 @@
 
         /* ========= CLEAR DATA ========= */
         $('#clearBtn').click(function () {
-          if (confirm('Clear all attendance data?')) {
-            localStorage.removeItem('scannedUsers');
-            scannedUsers = [];
-            renderTable();
+          if (confirm('⚠️ DELETE ALL DATA? This will wipe Google Sheets and local history.')) {
+            const $btn = $(this);
+            const originalHtml = $btn.html();
+            $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+
+            const clearLocal = () => {
+              localStorage.removeItem('scannedUsers');
+              scannedUsers = [];
+              renderTable();
+            };
+
+            if (GOOGLE_SCRIPT_URL.startsWith('https://script.google.com')) {
+              $.ajax({
+                url: GOOGLE_SCRIPT_URL,
+                type: 'POST',
+                data: JSON.stringify({ action: 'clear' }),
+                contentType: 'text/plain;charset=utf-8',
+                success: function () { clearLocal(); showStatus('✅ Cloud & Local data cleared!', 'success'); },
+                error: function () { clearLocal(); showStatus('⚠️ Local cleared. Cloud clear failed.', 'warning'); },
+                complete: function () { $btn.html(originalHtml).prop('disabled', false); }
+              });
+            } else {
+              clearLocal();
+              showStatus('✅ Local data cleared.', 'success');
+              $btn.html(originalHtml).prop('disabled', false);
+            }
           }
         });
 

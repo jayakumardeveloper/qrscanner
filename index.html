@@ -356,16 +356,20 @@
           });
         }
 
-        /* ========= DOWNLOAD FROM CLOUD ========= */
-        $('#btnSyncCloud').click(function() {
+        /* ========= DOWNLOAD FROM CLOUD (LIVE SYNC) ========= */
+        function fetchCloudData(silent = false) {
           if (!GOOGLE_SCRIPT_URL.startsWith('https://script.google.com')) {
-             showStatus('❌ Script URL not configured', 'danger');
+             if (!silent) showStatus('❌ Script URL not configured', 'danger');
              return;
           }
 
-          const $btn = $(this);
-          const originalHtml = $btn.html();
-          $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+          const $btn = $('#btnSyncCloud');
+          let originalHtml;
+
+          if (!silent) {
+            originalHtml = $btn.html();
+            $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
+          }
 
           // Add timestamp to prevent caching
           const urlWithCache = GOOGLE_SCRIPT_URL + (GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?') + 't=' + new Date().getTime();
@@ -386,25 +390,44 @@
                   newCount++;
                 }
               });
-              localStorage.setItem('scannedUsers', JSON.stringify(scannedUsers));
-              renderTable();
-              showStatus(`✅ Synced! Loaded ${newCount} new records.`, 'success');
+
+              if (newCount > 0) {
+                localStorage.setItem('scannedUsers', JSON.stringify(scannedUsers));
+                renderTable();
+                showStatus(`✅ Live Sync: Loaded ${newCount} new records.`, 'success');
+              } else if (!silent) {
+                 showStatus(`✅ Synced! Up to date.`, 'success');
+              }
             },
             error: function (xhr, status, error) {
               console.error('Cloud Load Error:', status, error);
-              if (xhr.status === 0) {
-                showStatus('⚠️ CORS Error: Check "Anyone" permission in Google Script.', 'danger');
-              } else if (xhr.status === 200) {
-                showStatus('❌ Error: Script returned HTML. Check "Anyone" permission.', 'danger');
-              } else {
-                showStatus('❌ Failed to load. Check console.', 'danger');
+              if (!silent) {
+                if (xhr.status === 0) {
+                  showStatus('⚠️ CORS Error: Check "Anyone" permission in Google Script.', 'danger');
+                } else if (xhr.status === 200) {
+                  showStatus('❌ Error: Script returned HTML. Check "Anyone" permission.', 'danger');
+                } else {
+                  showStatus('❌ Failed to load. Check console.', 'danger');
+                }
               }
             },
             complete: function () {
-              $btn.html(originalHtml).prop('disabled', false);
+              if (!silent) {
+                $btn.html(originalHtml).prop('disabled', false);
+              }
             },
           });
+        }
+
+        // Manual Trigger
+        $('#btnSyncCloud').click(function() {
+          fetchCloudData(false);
         });
+
+        // Auto Sync Interval (Every 5 seconds)
+        setInterval(() => {
+          fetchCloudData(true);
+        }, 5000);
 
         /* ========= PROCESS DATA (SCAN OR MANUAL) ========= */
         function processInput(data) {

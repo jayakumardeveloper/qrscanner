@@ -366,11 +366,12 @@
           const originalHtml = $btn.html();
           $btn.html('<span class="spinner-border spinner-border-sm"></span>').prop('disabled', true);
 
-          $.ajax({
-            url: GOOGLE_SCRIPT_URL,
-            type: 'GET',
-            dataType: 'json',
-            success: function (data) {
+          fetch(GOOGLE_SCRIPT_URL)
+            .then((response) => {
+              if (!response.ok) throw new Error('Network response was not ok');
+              return response.json();
+            })
+            .then((data) => {
               let newCount = 0;
               // Merge cloud data with local data
               data.forEach((cloudItem) => {
@@ -384,15 +385,14 @@
               localStorage.setItem('scannedUsers', JSON.stringify(scannedUsers));
               renderTable();
               showStatus(`✅ Synced! Loaded ${newCount} new records.`, 'success');
-            },
-            error: function (xhr, status, error) {
-              console.error('Cloud Load Error:', error, xhr.responseText);
-              showStatus('❌ Failed to load. Check console/permissions.', 'danger');
-            },
-            complete: function () {
+            })
+            .catch((error) => {
+              console.error('Cloud Load Error:', error);
+              showStatus('❌ Failed to load. Check permissions (Anyone).', 'danger');
+            })
+            .finally(() => {
               $btn.html(originalHtml).prop('disabled', false);
-            },
-          });
+            });
         });
 
         /* ========= PROCESS DATA (SCAN OR MANUAL) ========= */
